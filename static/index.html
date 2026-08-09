@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autonomous AI Creator — Live Feed & Editorial Engine</title>
+  <meta name="description" content="Production-grade autonomous AI creator with real-world news discovery, transparent editorial scoring, and unattended scheduling.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation / Status Bar -->
+  <header>
+    <div class="header-container">
+      <div class="logo-group">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1 class="logo-title">Autonomous AI Creator</h1>
+          <div class="logo-subtitle">Continuous Ingestion • Editorial Scoring • Autonomous Synthesis</div>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <!-- Live Pulse & Scheduler Status -->
+        <div class="stat-pill" title="Autonomous Scheduler State">
+          <div class="pulse-dot" id="pulseIndicator"></div>
+          <span id="schedulerStatus">Scheduler: Active</span>
+        </div>
+
+        <!-- Auto-Refresh Interval Control -->
+        <div class="auto-refresh-group">
+          <label for="autoRefreshSelect" class="control-label">Auto-Refresh:</label>
+          <select id="autoRefreshSelect" class="dropdown-select" onchange="changeAutoRefresh(this.value)">
+            <option value="5000">Every 5s</option>
+            <option value="10000" selected>Every 10s</option>
+            <option value="30000">Every 30s</option>
+            <option value="0">Paused</option>
+          </select>
+          <span class="refresh-countdown" id="refreshTimer">10s</span>
+        </div>
+
+        <!-- Action Buttons -->
+        <button class="btn-secondary" onclick="openPersonaModal()">
+          <span>⚙️</span> Edit Persona
+        </button>
+        <button class="btn-trigger" id="btnManualTrigger" onclick="triggerCycle()">
+          <span id="triggerIcon">⚡</span> <span id="triggerText">Run Cycle Now</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="dashboard-wrapper">
+    
+    <!-- Executive KPI Bar -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Published Posts</span>
+          <span class="kpi-icon">📝</span>
+        </div>
+        <div class="kpi-value" id="kpiPublished">0</div>
+        <div class="kpi-subtext" id="kpiPublishedSub">Velocity: 0 today</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Editorial Decisions</span>
+          <span class="kpi-icon">⚖️</span>
+        </div>
+        <div class="kpi-value" id="kpiDecisions">0</div>
+        <div class="kpi-subtext">Scored & audited</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">News Ingested</span>
+          <span class="kpi-icon">📡</span>
+        </div>
+        <div class="kpi-value" id="kpiIngested">0</div>
+        <div class="kpi-subtext">Multi-source feeds</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Daily Publication Cap</span>
+          <span class="kpi-icon">🛡️</span>
+        </div>
+        <div class="kpi-value" id="kpiCap">0 / 10</div>
+        <div class="cap-progress-bar">
+          <div class="cap-progress-fill" id="capFill" style="width: 0%;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main 2-Column Grid -->
+    <main class="main-layout">
+      
+      <!-- Left Column: Persona Details & Guardrails -->
+      <aside class="sidebar">
+        <div class="card persona-card">
+          <div class="persona-header">
+            <div class="persona-avatar" id="avatarLetter">A</div>
+            <div style="flex: 1;">
+              <div class="persona-name" id="personaName">Autonomous Agent</div>
+              <span class="persona-badge" id="personaStatusBadge">Active & Armed</span>
+            </div>
+          </div>
+          
+          <p class="persona-bio" id="personaBio">Loading persona configuration...</p>
+
+          <div class="section-divider"></div>
+
+          <div class="section-label">🎯 Topics of Interest</div>
+          <div class="tag-cloud" id="topicsList">
+            <span class="tag">AI</span>
+            <span class="tag">Autonomous Agents</span>
+          </div>
+
+          <div class="section-label">🎨 Tone & Style Traits</div>
+          <div class="tag-cloud" id="toneList">
+            <span class="tag tone">analytical</span>
+            <span class="tag tone">objective</span>
+          </div>
+
+          <div class="section-label">🚫 Banned Guardrails</div>
+          <div class="tag-cloud" id="bannedList">
+            <span class="tag banned">crypto speculation</span>
+            <span class="tag banned">clickbait</span>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <div class="scheduler-meta">
+            <div class="meta-row">
+              <span>Tick Frequency:</span>
+              <strong id="intervalMinutes">30 min</strong>
+            </div>
+            <div class="meta-row">
+              <span>Next Run:</span>
+              <strong id="nextRunCountdown">Calculating...</strong>
+            </div>
+            <div class="meta-row">
+              <span>Last Run:</span>
+              <strong id="lastRunStatus">idle</strong>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Column: Feeds, Decisions, Rejected Topics & Telemetry -->
+      <section class="content-area">
+        
+        <!-- Navigation Tabs -->
+        <div class="tab-container">
+          <button class="tab-btn active" onclick="switchTab('feed')" id="tabFeed">
+            📰 Latest Posts (<span id="feedCount">0</span>)
+          </button>
+          <button class="tab-btn" onclick="switchTab('rejected')" id="tabRejected">
+            🚫 Rejected Topics (<span id="rejectedCount">0</span>)
+          </button>
+          <button class="tab-btn" onclick="switchTab('decisions')" id="tabDecisions">
+            ⚖️ Editorial Audit (<span id="totalDecisionsTab">0</span>)
+          </button>
+          <button class="tab-btn" onclick="switchTab('runs')" id="tabRuns">
+            📊 Cycle Telemetry
+          </button>
+        </div>
+
+        <!-- 1. Feed View: Latest Posts -->
+        <div id="viewFeed" class="feed-stream">
+          <div class="empty-state" id="feedLoading">
+            <div class="empty-state-icon">📡</div>
+            <p>Listening for autonomous publications...</p>
+          </div>
+        </div>
+
+        <!-- 2. Rejected Topics & Stories View -->
+        <div id="viewRejected" style="display: none;">
+          <div class="view-intro-banner">
+            <div>
+              <h3>🚫 Rejected Candidate Stories & Guardrail Violations</h3>
+              <p>Transparent audit log of news items rejected due to low relevance, stale recency, topic repetition, or banned keyword guardrails.</p>
+            </div>
+          </div>
+          <div id="rejectedStream" class="decisions-stream"></div>
+        </div>
+
+        <!-- 3. All Editorial Decisions View -->
+        <div id="viewDecisions" style="display: none;">
+          <div class="filter-bar">
+            <span style="font-size: 0.825rem; color: var(--text-muted);">Filter Verdict:</span>
+            <button class="filter-chip active" onclick="filterDecisions('all')" id="filterAll">All Decisions</button>
+            <button class="filter-chip approved" onclick="filterDecisions('approved')" id="filterApproved">Approved Only</button>
+            <button class="filter-chip rejected" onclick="filterDecisions('rejected')" id="filterRejected">Rejected Only</button>
+          </div>
+          <div id="decisionsStream" class="decisions-stream"></div>
+        </div>
+
+        <!-- 4. Cycle Telemetry View -->
+        <div id="viewRuns" style="display: none;">
+          <div id="runsStream"></div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <!-- Persona Configuration & Re-Arm Modal -->
+  <div class="modal-backdrop" id="personaModal" style="display: none;" onclick="closeModalOnBackdrop(event)">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>⚙️ Configure Agent Persona</h2>
+        <button class="modal-close" onclick="closePersonaModal()">✕</button>
+      </div>
+      
+      <form id="personaForm" onsubmit="handlePersonaSubmit(event)">
+        <div class="form-group">
+          <label for="inputName">Persona Name</label>
+          <input type="text" id="inputName" required placeholder="e.g. Dr. Nova Sterling" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label for="inputBio">Persona Bio & Identity</label>
+          <textarea id="inputBio" rows="3" required placeholder="Principal AI researcher and technology critic..." class="form-textarea"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inputInterval">Interval (Minutes)</label>
+            <input type="number" id="inputInterval" min="1" max="1440" value="15" class="form-input">
+          </div>
+          <div class="form-group">
+            <label for="inputCap">Daily Post Cap</label>
+            <input type="number" id="inputCap" min="1" max="100" value="12" class="form-input">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="inputTopics">Topics of Interest (comma separated)</label>
+          <input type="text" id="inputTopics" value="LLMs, Autonomous Agents, Robotics, AI Safety, Open Source AI" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label for="inputTone">Tone Traits (comma separated)</label>
+          <input type="text" id="inputTone" value="analytical, authoritative, forward-looking, rigorous" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label for="inputBanned">Banned Topics / Keywords (comma separated)</label>
+          <input type="text" id="inputBanned" value="crypto speculation, clickbait, unverified rumors" class="form-input">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" onclick="closePersonaModal()">Cancel</button>
+          <button type="submit" class="btn-trigger" id="btnSavePersona">
+            <span>💾</span> Save & Re-Arm Agent
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
