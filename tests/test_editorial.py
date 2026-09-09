@@ -11,6 +11,7 @@ Tests:
 """
 
 import pytest
+from datetime import datetime, timezone, timedelta
 from editorial.editorial_decision_engine import EditorialDecisionEngine
 
 
@@ -107,7 +108,7 @@ def test_accepts_high_signal_breaking_ai_article(editorial_engine):
         "title": "DeepSeek R2 Breakthrough: Test-Time Reasoning Scaling for Formal Verification",
         "summary": "Empirical benchmarks demonstrate that compute scaling during inference allows 7B models to outperform prior monolithic frontiers.",
         "url": "https://research.ai/deepseek-r2",
-        "publishedDate": "2026-08-07T22:00:00Z"
+        "publishedDate": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
     }
     result = editorial_engine.evaluate_article(breaking_article, previously_published=[])
     assert result.decision == "ACCEPT"

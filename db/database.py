@@ -30,10 +30,10 @@ def get_engine() -> Engine:
     """Returns singleton SQLAlchemy Engine instance."""
     global _engine
     if _engine is None:
-        db_path = Path(settings.DB_PATH)
+        db_path = settings.sqlite_db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
         _engine = create_engine(
-            settings.database_url,
+            f"sqlite:///{db_path.as_posix()}",
             connect_args={"check_same_thread": False},
             echo=False,
             future=True
