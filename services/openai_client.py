@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from openai import OpenAI
 from app.config import settings
 from utils.retry import with_retry
@@ -22,32 +23,28 @@ def fallback_synthesizer(system_prompt: str, user_prompt: str, item_title: str =
     Deterministic synthesis fallback for when no OpenAI key is configured
     or when external LLM endpoints are unreachable.
     """
-    logger.info("Using built-in intelligent synthesis engine.")
+    logger.info("Using grounded local synthesis because no LLM provider is configured.")
     # Extract title from user prompt if available
-    title = item_title or "Breakthrough in Autonomous AI Architectures"
-    if "Title**:" in user_prompt:
-        try:
-            title = user_prompt.split("Title**:")[1].split("\n")[0].strip()
-        except Exception:
-            pass
-            
-    source_url = item_url or "https://techcrunch.com/artificial-intelligence"
-    if "Source**:" in user_prompt and "(" in user_prompt:
-        try:
-            source_url = user_prompt.split("(")[1].split(")")[0].strip()
-        except Exception:
-            pass
+    title = item_title
+    title_match = re.search(r"\*\*Title\*\*:\s*(.+)", user_prompt)
+    if title_match:
+        title = title_match.group(1).strip()
 
-    content = (
-        f"⚡ High-impact development: {title}. "
-        f"As autonomous agentic loops and reasoning-first models accelerate, "
-        f"teams that prioritize self-healing architectures and transparent editorial guardrails "
-        f"will define the next compute paradigm. Verified source: {source_url}"
-    )
+    source_url = item_url
+    source_match = re.search(r"\*\*Source\*\*:\s*.+?\((https?://[^)]+)\)", user_prompt)
+    if source_match:
+        source_url = source_match.group(1).strip()
+
+    summary_match = re.search(r"\*\*Summary\*\*:\s*(.+)", user_prompt)
+    summary = summary_match.group(1).strip() if summary_match else ""
+
+    if not title or not source_url or not summary:
+        raise RuntimeError("Cannot synthesize content without verified title, summary, and source.")
+
+    content = f"{title}. {summary} Source: {source_url}"
     
     rationale = (
-        f"Covers key technical milestone '{title}' with a critical lens on autonomous reliability "
-        f"and systems design."
+        f"Grounded only in the discovered source and requires no unsupported factual additions."
     )
     
     return {
@@ -91,5 +88,5 @@ def call_completion(system_prompt: str, user_prompt: str, json_mode: bool = True
             
         return parsed
     except Exception as e:
-        logger.warning(f"OpenAI API call failed ({e}); switching to fallback synthesizer.")
-        return fallback_synthesizer(system_prompt, user_prompt)
+        logger.error("OpenAI API call failed: %s", e, exc_info=True)
+        raise

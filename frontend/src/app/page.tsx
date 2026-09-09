@@ -1,14 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { AgentStatus, Post, EditorialDecision, RunLog, AgentConfigRequest } from '../lib/types';
-import { getStatus, getFeed, getDecisions, getRuns, triggerCycle, updatePersona } from '../lib/api';
+import { AgentStatus, Post, EditorialDecision, RunLog, AgentLog, AgentConfigRequest } from '../lib/types';
+import { getStatus, getConfig, getFeed, getDecisions, getRuns, getLogs, triggerCycle, updatePersona } from '../lib/api';
 
 export default function DashboardPage() {
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [decisions, setDecisions] = useState<EditorialDecision[]>([]);
   const [runs, setRuns] = useState<RunLog[]>([]);
+  const [logs, setLogs] = useState<AgentLog[]>([]);
   const [activeTab, setActiveTab] = useState<'feed' | 'rejected' | 'decisions' | 'runs'>('feed');
   const [decisionFilter, setDecisionFilter] = useState<'all' | 'approved' | 'rejected'>('all');
   
@@ -22,13 +23,13 @@ export default function DashboardPage() {
 
   // Form state
   const [formState, setFormState] = useState<AgentConfigRequest>({
-    persona_name: 'Dr. Nova Sterling',
-    persona_bio: 'Autonomous Principal AI Researcher specializing in reasoning models, autonomous agentic loops, and open-weights intelligence.',
-    topics_of_interest: ['LLMs', 'Autonomous Agents', 'Robotics', 'AI Safety', 'Open Source AI'],
-    posting_interval_minutes: 15,
-    tone_traits: ['analytical', 'authoritative', 'forward-looking', 'rigorous'],
-    banned_topics: ['crypto speculation', 'clickbait', 'unverified rumors'],
-    daily_post_cap: 12
+    persona_name: '',
+    persona_bio: '',
+    topics_of_interest: [],
+    posting_interval_minutes: 30,
+    tone_traits: [],
+    banned_topics: [],
+    daily_post_cap: 10
   });
 
   const showToast = (msg: string) => {
@@ -38,16 +39,20 @@ export default function DashboardPage() {
 
   const loadAllData = useCallback(async () => {
     try {
-      const [sData, fData, dData, rData] = await Promise.all([
+      const [sData, cData, fData, dData, rData, lData] = await Promise.all([
         getStatus().catch(() => null),
+        getConfig().catch(() => null),
         getFeed().catch(() => ({ total: 0, posts: [] })),
         getDecisions().catch(() => []),
-        getRuns().catch(() => [])
+        getRuns().catch(() => []),
+        getLogs().catch(() => [])
       ]);
       if (sData) setStatus(sData);
+      if (cData) setFormState(cData);
       if (fData) setPosts(fData.posts);
       if (dData) setDecisions(dData);
       if (rData) setRuns(rData);
+      if (lData) setLogs(lData);
     } catch (err) {
       console.error('Data load error:', err);
     }
@@ -110,7 +115,7 @@ export default function DashboardPage() {
   };
 
   const rejectedDecisions = decisions.filter(d => !d.should_publish);
-  const capPct = Math.min(100, Math.round(((status?.daily_posts_today || 0) / (status?.daily_post_cap || 10)) * 100));
+  const capPct = Math.min(100, Math.round(((status?.daily_posts_today ?? 0) / (status?.daily_post_cap ?? 10)) * 100));
 
   return (
     <div>
@@ -166,8 +171,8 @@ export default function DashboardPage() {
               <span className="kpi-label">Published Posts</span>
               <span className="kpi-icon">📝</span>
             </div>
-            <div className="kpi-value">{status?.total_posts_published || posts.length}</div>
-            <div className="kpi-subtext">Velocity: {status?.daily_posts_today || 0} today</div>
+            <div className="kpi-value">{status?.total_posts_published ?? posts.length}</div>
+            <div className="kpi-subtext">Velocity: {status?.daily_posts_today ?? 0} today</div>
           </div>
 
           <div className="kpi-card">
@@ -175,7 +180,7 @@ export default function DashboardPage() {
               <span className="kpi-label">Editorial Decisions</span>
               <span className="kpi-icon">⚖️</span>
             </div>
-            <div className="kpi-value">{status?.total_decisions_made || decisions.length}</div>
+            <div className="kpi-value">{status?.total_decisions_made ?? decisions.length}</div>
             <div className="kpi-subtext">Scored & audited</div>
           </div>
 
@@ -184,7 +189,7 @@ export default function DashboardPage() {
               <span className="kpi-label">News Ingested</span>
               <span className="kpi-icon">📡</span>
             </div>
-            <div className="kpi-value">{status?.total_news_items_ingested || 30}</div>
+            <div className="kpi-value">{status?.total_news_items_ingested ?? 0}</div>
             <div className="kpi-subtext">Multi-source discovery</div>
           </div>
 
@@ -193,7 +198,7 @@ export default function DashboardPage() {
               <span className="kpi-label">Daily Publication Cap</span>
               <span className="kpi-icon">🛡️</span>
             </div>
-            <div className="kpi-value">{status?.daily_posts_today || 0} / {status?.daily_post_cap || 10}</div>
+            <div className="kpi-value">{status?.daily_posts_today ?? 0} / {status?.daily_post_cap ?? 10}</div>
             <div className="cap-progress-bar">
               <div className="cap-progress-fill" style={{ width: `${capPct}%` }}></div>
             </div>
@@ -246,7 +251,7 @@ export default function DashboardPage() {
               <div className="scheduler-meta">
                 <div className="meta-row">
                   <span>Tick Frequency:</span>
-                  <strong>{status?.posting_interval_minutes || 15} min</strong>
+                  <strong>{status?.posting_interval_minutes ?? 30} min</strong>
                 </div>
                 <div className="meta-row">
                   <span>Next Run:</span>
@@ -254,7 +259,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="meta-row">
                   <span>Last Cycle Status:</span>
-                  <strong style={{ textTransform: 'uppercase', color: 'var(--accent-emerald)' }}>{status?.last_cycle_status || 'success'}</strong>
+                  <strong style={{ textTransform: 'uppercase', color: 'var(--accent-emerald)' }}>{status?.last_cycle_status ?? 'idle'}</strong>
                 </div>
               </div>
             </div>
@@ -296,7 +301,7 @@ export default function DashboardPage() {
                 {posts.length === 0 ? (
                   <div className="empty-state">
                     <div className="empty-state-icon">📡</div>
-                    <p>No posts published yet. Click <strong>"Run Cycle Now"</strong> to trigger discovery and synthesis!</p>
+                    <p>No posts published yet. Click <strong>&quot;Run Cycle Now&quot;</strong> to trigger discovery and synthesis!</p>
                   </div>
                 ) : (
                   posts.map((p, idx) => (
@@ -429,6 +434,17 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   ))
+                )}
+                {logs.length > 0 && (
+                  <div className="card" style={{ marginTop: '1rem' }}>
+                    <h3>Recent Agent Activity</h3>
+                    {logs.map(log => (
+                      <div key={log.id} style={{ padding: '0.45rem 0', color: 'var(--text-muted)' }}>
+                        <strong>{log.level}</strong> {log.message}
+                        <small style={{ marginLeft: '0.5rem' }}>{new Date(log.created_at).toLocaleTimeString()}</small>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}

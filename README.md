@@ -332,3 +332,35 @@ The database volume is persisted at `./data/autonomous_agent.db`.
 
 ## 📄 License
 MIT License. Built for the Autonomous AI Creator Hackathon.
+
+## Production operation notes
+
+The root `app.main:app` application is the supported runtime. The older
+`backend/` tree and `api/hackathon_api.py` remain for compatibility with
+historical experiments, but production routes are registered from
+`api/routes_agent.py` and use the SQLAlchemy models in `db/models.py`.
+
+Set `NEXT_PUBLIC_API_URL` to the deployed FastAPI origin in Vercel. Leave it
+empty for same-origin deployments. The Next.js development proxy uses
+`BACKEND_URL` and defaults only to `http://localhost:8000` during local
+development; it never uses a loopback URL as a production API default.
+
+The supported agent endpoints are:
+
+- `GET /health`
+- `GET /api/agent/status`
+- `GET /api/agent/config`
+- `PUT /api/agent/config`
+- `POST /api/agent/run`
+- `GET /api/agent/feed`
+- `GET /api/agent/decisions`
+- `GET /api/agent/runs`
+- `GET /api/agent/logs`
+- `GET /api/agent/analytics`
+
+Discovery never substitutes synthetic stories when live sources fail. A cycle
+with no live candidates is recorded as `degraded`, and no post is generated.
+For serverless deployments, keep `ENABLE_INTERNAL_SCHEDULER=false` and invoke
+`POST /api/agent/run` from an external scheduler with the
+`X-Agent-Trigger-Secret` header. Configure `DATABASE_URL` with PostgreSQL for
+production; SQLite remains supported for local development.

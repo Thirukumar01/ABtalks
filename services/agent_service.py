@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from db.models import AgentConfig, NewsItem, EditorialDecision, Post, RunLog
@@ -13,6 +14,12 @@ from api.schemas import AgentConfigRequest
 from utils.errors import ConfigConflictError
 
 logger = logging.getLogger("autonomous_creator.service")
+_cycle_lock = threading.Lock()
+
+
+def _log_run_event(session: Session, run_id: str, message: str, level: str = "INFO") -> None:
+    from db.models import AgentLog
+    session.add(AgentLog(agent_run_id=run_id, level=level, message=message))
 
 
 def get_active_config(session: Session) -> AgentConfig | None:
@@ -38,10 +45,11 @@ def init_agent(config_req: AgentConfigRequest, session: Session) -> AgentConfig:
     raises ConfigConflictError (maps to 409 in API).
     """
     existing = get_active_config(session)
-    if existing and not config_req.force_restart:
+    force = config_req.force_restart or config_req.force_reinit
+    if existing and not force:
         raise ConfigConflictError("An active agent persona is already configured.")
         
-    if existing and config_req.force_restart:
+    if existing and force:
         existing.is_active = False
         session.flush()
         
@@ -50,7 +58,7 @@ def init_agent(config_req: AgentConfigRequest, session: Session) -> AgentConfig:
         persona_bio=config_req.persona_bio,
         posting_interval_minutes=config_req.posting_interval_minutes,
         daily_post_cap=config_req.daily_post_cap,
-        is_active=True,
+        is_active=config_req.is_active,
         created_at=datetime.now(timezone.utc)
     )
     new_config.topics_of_interest = config_req.topics_of_interest
@@ -73,6 +81,9 @@ def run_cycle(session: Session) -> dict:
     5. Memory: Compact old memory if needed.
     6. Telemetry: Record run stats in RunLog.
     """
+    if not _cycle_lock.acquire(blocking=False):
+        return {"status": "running", "message": "Agent cycle already running"}
+
     run_start = datetime.now(timezone.utc)
     config = get_active_config(session)
     
@@ -85,11 +96,14 @@ def run_cycle(session: Session) -> dict:
     )
     session.add(run_record)
     session.flush()
+    _log_run_event(session, run_record.id, "Agent started")
     
     if not config:
         run_record.status = "skipped_no_config"
         run_record.run_ended_at = datetime.now(timezone.utc)
+        _log_run_event(session, run_record.id, "No active persona configured", "WARNING")
         session.flush()
+        _cycle_lock.release()
         return {
             "status": "skipped",
             "message": "No active agent configuration found.",
@@ -102,7 +116,9 @@ def run_cycle(session: Session) -> dict:
         logger.info("Daily publication cap reached. Skipping generation this cycle.")
         run_record.status = "capped"
         run_record.run_ended_at = datetime.now(timezone.utc)
+        _log_run_event(session, run_record.id, "Daily publication cap reached", "WARNING")
         session.flush()
+        _cycle_lock.release()
         return {
             "status": "capped",
             "message": f"Daily post cap of {config.daily_post_cap} reached for today.",
@@ -116,6 +132,21 @@ def run_cycle(session: Session) -> dict:
         raw_items = fetch_all()
         new_stored_count = store_new_items(raw_items, session)
         run_record.items_fetched = len(raw_items)
+        _log_run_event(session, run_record.id, f"Discovery found {len(raw_items)} live candidates")
+        if not raw_items:
+            run_record.status = "degraded"
+            run_record.run_ended_at = datetime.now(timezone.utc)
+            run_record.error_message = "No live stories were available from configured sources."
+            _log_run_event(session, run_record.id, run_record.error_message, "WARNING")
+            session.flush()
+            _cycle_lock.release()
+            return {
+                "status": "degraded",
+                "message": run_record.error_message,
+                "items_fetched": 0,
+                "decisions_made": 0,
+                "posts_published": 0
+            }
         
         # Step 2: Editorial Judgment on unprocessed items
         unprocessed_items = session.query(NewsItem).filter(NewsItem.processed == 0).all()
@@ -146,6 +177,8 @@ def run_cycle(session: Session) -> dict:
         run_record.status = "success"
         run_record.run_ended_at = datetime.now(timezone.utc)
         session.flush()
+        _log_run_event(session, run_record.id, "Agent completed")
+        _cycle_lock.release()
         
         logger.info(
             f"Autonomous cycle completed: {new_stored_count} new items stored, "
@@ -166,6 +199,8 @@ def run_cycle(session: Session) -> dict:
         run_record.error_message = str(e)
         run_record.run_ended_at = datetime.now(timezone.utc)
         session.flush()
+        _log_run_event(session, run_record.id, f"Agent failed: {e}", "ERROR")
+        _cycle_lock.release()
         return {
             "status": "failed",
             "error": str(e),

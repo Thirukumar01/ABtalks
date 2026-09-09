@@ -49,7 +49,7 @@ def create_post(
         banned_topics=persona_config.banned_topics
     )
     
-    status = "published" if is_valid else "held"
+    status = "published" if is_valid else "rejected"
     if not is_valid:
         logger.warning(f"Post marked as HELD due to style guard violations: {issues}")
         

@@ -13,6 +13,8 @@ class AgentConfigRequest(BaseModel):
     banned_topics: List[str] = Field(default_factory=lambda: ["crypto shilling", "clickbait", "unverified rumors", "celebrity gossip"])
     daily_post_cap: int = Field(default=10, ge=1, le=100)
     force_restart: bool = Field(default=False, description="If true, overwrites existing active persona")
+    force_reinit: bool = Field(default=False, description="Backward-compatible alias for force_restart")
+    is_active: bool = True
 
 
 class AgentConfigResponse(BaseModel):
@@ -27,6 +29,7 @@ class AgentConfigResponse(BaseModel):
     daily_post_cap: int
     is_active: bool
     created_at: datetime
+    updated_at: Optional[datetime] = None
     message: str = "Agent successfully configured and autonomous scheduler armed."
 
     model_config = ConfigDict(from_attributes=True)

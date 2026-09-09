@@ -1,10 +1,16 @@
-import { AgentStatus, Post, EditorialDecision, RunLog, AgentConfigRequest } from './types';
+import { AgentStatus, Post, EditorialDecision, RunLog, AgentLog, AgentConfigRequest } from './types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
 
 export async function getStatus(): Promise<AgentStatus> {
   const res = await fetch(`${API_BASE}/api/agent/status`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to fetch agent status');
+  return res.json();
+}
+
+export async function getConfig(): Promise<AgentConfigRequest> {
+  const res = await fetch(`${API_BASE}/api/agent/config`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch agent configuration');
   return res.json();
 }
 
@@ -26,17 +32,23 @@ export async function getRuns(limit = 15): Promise<RunLog[]> {
   return res.json();
 }
 
+export async function getLogs(limit = 30): Promise<AgentLog[]> {
+  const res = await fetch(`${API_BASE}/api/agent/logs?limit=${limit}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch agent logs');
+  return res.json();
+}
+
 export async function triggerCycle(): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${API_BASE}/api/agent/trigger`, { method: 'POST' });
+  const res = await fetch(`${API_BASE}/api/agent/run`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to trigger autonomous cycle');
   return res.json();
 }
 
 export async function updatePersona(config: AgentConfigRequest): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/agent/init`, {
-    method: 'POST',
+  const res = await fetch(`${API_BASE}/api/agent/config`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...config, force_restart: true })
+    body: JSON.stringify({ ...config, is_active: true })
   });
   if (!res.ok) {
     const errorData = await res.json();

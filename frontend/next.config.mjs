@@ -5,11 +5,11 @@ const nextConfig = {
     return [
       {
         source: '/api/agent/:path*',
-        destination: 'http://127.0.0.1:8000/api/agent/:path*',
+        destination: `${process.env.BACKEND_URL || 'http://localhost:8000'}/api/agent/:path*`,
       },
       {
         source: '/health',
-        destination: 'http://127.0.0.1:8000/health',
+        destination: `${process.env.BACKEND_URL || 'http://localhost:8000'}/health`,
       }
     ];
   },

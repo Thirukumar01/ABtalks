@@ -187,3 +187,28 @@ class RunLog(Base):
     decisions_made = Column(Integer, nullable=False, default=0)
     posts_published = Column(Integer, nullable=False, default=0)
     error_message = Column(Text, nullable=True)
+    logs = relationship("AgentLog", back_populates="run", cascade="all, delete-orphan")
+
+
+class AgentLog(Base):
+    """Structured activity emitted by each autonomous cycle."""
+    __tablename__ = "agent_logs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    agent_run_id = Column(String(36), ForeignKey("run_logs.id", ondelete="CASCADE"), nullable=False, index=True)
+    level = Column(String(20), nullable=False, default="INFO")
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utc_now, index=True)
+
+    run = relationship("RunLog", back_populates="logs")
+
+
+class SourceFailure(Base):
+    """Failure telemetry for an individual discovery source."""
+    __tablename__ = "source_failures"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    source = Column(String(200), nullable=False, index=True)
+    error_message = Column(Text, nullable=False)
+    occurred_at = Column(DateTime, nullable=False, default=utc_now, index=True)
+    agent_run_id = Column(String(36), ForeignKey("run_logs.id", ondelete="SET NULL"), nullable=True)
