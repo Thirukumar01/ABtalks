@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import sqlite3
 from contextlib import contextmanager
 from typing import Generator
 from sqlalchemy import create_engine, event
@@ -16,6 +17,8 @@ _SessionFactory: sessionmaker | None = None
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     """Enable SQLite WAL mode, foreign keys, and busy timeout for high-concurrency read/write."""
+    if not isinstance(dbapi_connection, sqlite3.Connection):
+        return
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL;")
     cursor.execute("PRAGMA synchronous=NORMAL;")
@@ -33,7 +36,7 @@ def get_engine() -> Engine:
         db_path = settings.sqlite_db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
         _engine = create_engine(
-            f"sqlite:///{db_path.as_posix()}",
+            settings.database_url,
             connect_args={"check_same_thread": False},
             echo=False,
             future=True

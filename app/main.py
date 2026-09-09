@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
+from sqlalchemy import text
 from app.config import settings
 from db.database import init_db, get_session
 from api.routes_agent import router as agent_router
@@ -32,7 +33,7 @@ async def lifespan(app: FastAPI):
     # Auto-resume scheduler if active persona exists in SQLite
     with get_session() as session:
         active_config = get_active_config(session)
-        if active_config:
+        if active_config and settings.ENABLE_INTERNAL_SCHEDULER:
             logger.info(f"Active persona '{active_config.persona_name}' found. Starting autonomous background scheduler.")
             start_scheduler(interval_minutes=active_config.posting_interval_minutes)
         else:
@@ -56,8 +57,8 @@ def create_app() -> FastAPI:
     # CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_credentials=bool(settings.ALLOWED_ORIGINS),
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -68,10 +69,19 @@ def create_app() -> FastAPI:
     # Health check endpoint
     @app.get("/health", tags=["Health"])
     def health_check():
+        database_status = "healthy"
+        try:
+            with get_session() as session:
+                session.execute(text("SELECT 1"))
+        except Exception:
+            database_status = "degraded"
         return {
-            "status": "ok",
+            "status": "ok" if database_status == "healthy" else "degraded",
+            "health": "healthy" if database_status == "healthy" else "degraded",
+            "database": database_status,
+            "agent": "idle",
             "env": settings.ENV,
-            "version": "1.0.0"
+            "version": settings.APP_VERSION
         }
 
     # Mount static assets & dashboard

@@ -49,6 +49,14 @@ export interface RunLog {
   error_message: string | null;
 }
 
+export interface AgentLog {
+  id: string;
+  agent_run_id: string;
+  level: string;
+  message: string;
+  created_at: string;
+}
+
 export interface AgentConfigRequest {
   persona_name: string;
   persona_bio: string;
@@ -58,4 +66,6 @@ export interface AgentConfigRequest {
   banned_topics: string[];
   daily_post_cap: number;
   force_restart?: boolean;
+  force_reinit?: boolean;
+  is_active?: boolean;
 }

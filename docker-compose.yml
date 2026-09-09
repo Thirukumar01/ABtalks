@@ -8,8 +8,12 @@ services:
     environment:
       - ENV=production
       - DB_PATH=/app/data/agent.db
+      - DATABASE_URL=${DATABASE_URL:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - NEWS_API_KEY=${NEWS_API_KEY:-}
+      - AGENT_TRIGGER_SECRET=${AGENT_TRIGGER_SECRET:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-["http://localhost:3000"]}
+      - ENABLE_INTERNAL_SCHEDULER=${ENABLE_INTERNAL_SCHEDULER:-false}
       - DEFAULT_POSTING_INTERVAL_MINUTES=30
       - LOG_LEVEL=INFO
     volumes:

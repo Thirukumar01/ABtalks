@@ -1,59 +1,12 @@
 import logging
 import feedparser
 import httpx
-from datetime import datetime, timezone, timedelta
 from app.config import settings
 from discovery.normalizer import normalize
+from discovery.verifier import verify_source
 from utils.retry import with_retry
 
 logger = logging.getLogger("autonomous_creator.discovery")
-
-# High quality curated real-world AI news stories as fallback if network/API is restricted
-CURATED_AI_STORIES = [
-    {
-        "source": "AI Research Chronicle",
-        "url": "https://research.ai/2026/08/deepseek-r2-reasoning-scaling",
-        "title": "DeepSeek R2 Breakthrough: Test-Time Reasoning Scaling Outperforms Prior Frontiers",
-        "summary": "New empirical evaluations demonstrate that inference-time compute scaling laws enable smaller models to outperform 70B monolithic models across math, formal verification, and multi-step tool use.",
-        "published_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-    },
-    {
-        "source": "Autonomous Systems Daily",
-        "url": "https://autosystems.io/2026/08/autonomous-agents-self-healing-codebases",
-        "title": "Autonomous Coding Agents Achieve 88% Fix Rate in Complex Monorepo Benchmarks",
-        "summary": "Benchmarking results across 10,000 multi-file repository bugs show modern agentic frameworks utilizing iterative feedback and LSP tools resolve edge cases without human intervention.",
-        "published_at": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
-    },
-    {
-        "source": "TechCrunch AI",
-        "url": "https://techcrunch.com/2026/08/open-weights-moe-frontier-models",
-        "title": "Open Weights MoE Models Surge Past Proprietary APIs in Developer Adoption",
-        "summary": "Developers are rapidly migrating to localized and fine-tunable Mixture-of-Experts architectures due to privacy, deterministic latency, and dramatic cost reductions.",
-        "published_at": (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
-    },
-    {
-        "source": "VentureBeat AI",
-        "url": "https://venturebeat.com/ai/2026/08/enterprise-rag-evaluation-frameworks",
-        "title": "Enterprise RAG Shifts to Graph and Hybrid Retrieval for High-Stakes Compliance",
-        "summary": "A comprehensive study reveals vector similarity alone suffers from semantic blindness in domain-specific documents; graph-augmented knowledge structures reduce hallucinations by 74%.",
-        "published_at": (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()
-    },
-    {
-        "source": "MIT Technology Review",
-        "url": "https://technologyreview.com/2026/08/robotic-foundation-models-general-manipulation",
-        "title": "Vision-Language-Action Foundation Models Unlock Zero-Shot Industrial Manipulation",
-        "summary": "Robotics laboratories showcase unified VLA models operating across heterogeneous robot arms, learning complex physical assembly tasks from internet-scale video datasets.",
-        "published_at": (datetime.now(timezone.utc) - timedelta(hours=5)).isoformat()
-    },
-    {
-        "source": "Nature Machine Intelligence",
-        "url": "https://nature.com/articles/s42256-2026-bio-synthetic-proteins",
-        "title": "Generative Diffusion Models Design De Novo Enzymes with High Catalytic Activity",
-        "summary": "Computational biologists leverage 3D generative diffusion architectures to design novel biocatalysts validated in laboratory wet-bench assays.",
-        "published_at": (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
-    }
-]
-
 
 @with_retry(max_attempts=2, initial_delay=0.5, allowed_exceptions=(httpx.RequestError,))
 def fetch_from_newsapi(query: str = "artificial intelligence OR LLM OR autonomous agent", api_key: str = "") -> list[dict]:
@@ -122,16 +75,13 @@ def fetch_from_rss(feed_urls: list[str]) -> list[dict]:
     return items
 
 
-def fetch_curated_fallback() -> list[dict]:
-    """Provides high quality fallback tech news if external internet is constrained."""
-    return [dict(item) for item in CURATED_AI_STORIES]
-
-
 def fetch_all() -> list[dict]:
     """
     Main discovery orchestrator.
-    Aggregates NewsAPI + RSS feeds + curated fallback, normalizes all entries,
-    and returns a consolidated list.
+    Aggregates live NewsAPI and RSS entries and returns normalized items.
+
+    Empty results are intentional: the pipeline must not manufacture stories
+    when every live source is unavailable.
     """
     raw_collected: list[dict] = []
     
@@ -153,17 +103,12 @@ def fetch_all() -> list[dict]:
     except Exception as e:
         logger.warning(f"RSS fetch error: {e}")
         
-    # 3. If live items are scarce or network unavailable, augment with curated stories
-    if len(raw_collected) < 4:
-        logger.info("Augmenting discovery with curated high-signal stories.")
-        raw_collected.extend(fetch_curated_fallback())
-        
     # Normalize all collected raw items
     normalized_items: list[dict] = []
     for raw in raw_collected:
         if raw.get("title") and raw.get("url"):
             norm = normalize(raw)
-            if norm["title"] and norm["source_url"]:
+            if norm["title"] and norm["source_url"] and verify_source(norm["source_url"]):
                 normalized_items.append(norm)
                 
     return normalized_items

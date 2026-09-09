@@ -237,24 +237,7 @@ class AINewsDiscoveryEngine:
         if feed_articles:
             return feed_articles
 
-        # 2. Resilient curated fallback if external CDN blocks feedparser
-        curated_anthropic = [
-            {
-                "title": "Anthropic Introduces Advanced Computer Use and Model Context Protocol (MCP)",
-                "summary": "Anthropic unveils the Model Context Protocol (MCP), an open standard for securely connecting AI agents to enterprise data repositories, tools, and developer environments.",
-                "url": "https://www.anthropic.com/news/model-context-protocol",
-                "publishedDate": datetime.now(timezone.utc).isoformat()
-            },
-            {
-                "title": "System Cards and Empirical Alignment Benchmarks for Claude 3.7 Sonnet",
-                "summary": "Comprehensive safety evaluations demonstrating hybrid reasoning capabilities and reduced susceptibility to jailbreaks in multi-step agentic workflows.",
-                "url": "https://www.anthropic.com/research",
-                "publishedDate": datetime.now(timezone.utc).isoformat()
-            }
-        ]
-        for item in curated_anthropic:
-            if not self.is_duplicate(item["title"], item["url"]):
-                articles.append(NormalizedArticle(**item, source=source_name))
+        # Do not synthesize stories when the live source is unavailable.
         return articles
 
     # ==========================================
